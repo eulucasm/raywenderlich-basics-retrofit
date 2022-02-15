@@ -44,7 +44,6 @@ import androidx.fragment.app.DialogFragment
 import com.raywenderlich.android.taskie.App
 import com.raywenderlich.android.taskie.R
 import com.raywenderlich.android.taskie.networking.NetworkStatusChecker
-import com.raywenderlich.android.taskie.networking.RemoteApi
 import kotlinx.android.synthetic.main.fragment_dialog_task_options.*
 
 /**
