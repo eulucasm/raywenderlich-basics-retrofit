@@ -34,27 +34,13 @@
 
 package com.raywenderlich.android.taskie.networking
 
-import com.google.gson.Gson
-import com.raywenderlich.android.taskie.App
-import com.raywenderlich.android.taskie.model.Task
-import com.raywenderlich.android.taskie.model.UserProfile
+import com.raywenderlich.android.taskie.model.*
 import com.raywenderlich.android.taskie.model.request.AddTaskRequest
 import com.raywenderlich.android.taskie.model.request.UserDataRequest
-import com.raywenderlich.android.taskie.model.response.CompleteNoteResponse
-import com.raywenderlich.android.taskie.model.response.GetTasksResponse
-import com.raywenderlich.android.taskie.model.response.LoginResponse
-import com.raywenderlich.android.taskie.model.response.UserProfileResponse
-import okhttp3.MediaType
-import okhttp3.RequestBody
-import okhttp3.ResponseBody
-import org.json.JSONObject
+import com.raywenderlich.android.taskie.model.response.*
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.net.HttpURLConnection
-import java.net.URL
 
 /**
  * Holds decoupled logic for all the API calls.
@@ -64,176 +50,134 @@ const val BASE_URL = "https://taskie-rw.herokuapp.com"
 
 class RemoteApi(private val apiService: RemoteApiService) {
 
-   private val gson = Gson()
-
-   fun loginUser(userDataRequest: UserDataRequest, onUserLoggedIn: (String?, Throwable?) -> Unit) {
-      val body = RequestBody.create(
-         MediaType.parse("application/json"), gson.toJson(userDataRequest)
-      )
-
-      apiService.loginUser(body).enqueue(object : Callback<ResponseBody> {
-         override fun onFailure(call: Call<ResponseBody>, error: Throwable) {
-            onUserLoggedIn(null, error)
-         }
-
-         override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-            val jsonBody = response.body()?.string()
-
-            if (jsonBody == null) {
-               onUserLoggedIn(null, NullPointerException("No response body!"))
-               return
-            }
-
-            val loginResponse = gson.fromJson(jsonBody, LoginResponse::class.java)
-
-            if (loginResponse == null || loginResponse.token.isNullOrBlank()) {
-               onUserLoggedIn(null, NullPointerException("No response body!"))
-            } else {
-               onUserLoggedIn(loginResponse.token, null)
-            }
-         }
-      })
-   }
-
-   fun registerUser(
-      userDataRequest: UserDataRequest,
-      onUserCreated: (String?, Throwable?) -> Unit
-   ) {
-      val body = RequestBody.create(
-         MediaType.parse("application/json"), gson.toJson(userDataRequest)
-      )
-
-      apiService.registerUser(body).enqueue(object : Callback<ResponseBody> {
-         override fun onFailure(call: Call<ResponseBody>, error: Throwable) {
-            onUserCreated(null, error)
-         }
-
-         override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-            val message = response.body()?.string()
-            if (message == null) onUserCreated(null, NullPointerException("No response body!"))
-
-            onUserCreated(message, null)
-         }
-      })
-   }
-
-   fun getTasks(onTasksReceived: (List<Task>, Throwable?) -> Unit) {
-      apiService.getNotes(App.getToken()).enqueue(object : Callback<ResponseBody> {
-         override fun onFailure(call: Call<ResponseBody>, error: Throwable) {
-            onTasksReceived(emptyList(), error)
-         }
-
-         override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-            val jsonBody = response.body()?.string()
-
-            if (jsonBody == null) {
-               onTasksReceived(emptyList(), java.lang.NullPointerException("No data available!"))
-               return
-            }
-
-            val data = gson.fromJson(jsonBody, GetTasksResponse::class.java)
-
-            if (data != null && data.notes.isEmpty()) {
-               onTasksReceived(data.notes.filter { !it.isCompleted }, null)
-            } else {
-               onTasksReceived(emptyList(), java.lang.NullPointerException("No data available!"))
-            }
-         }
-      })
-   }
-
-   fun deleteTask(onTaskDeleted: (Throwable?) -> Unit) {
-      onTaskDeleted(null)
-   }
-
-   fun completeTask(taskId: String, onTaskCompleted: (Throwable?) -> Unit) {
-      apiService.completeTask(App.getToken(), taskId).enqueue(object : Callback<ResponseBody> {
-
-         override fun onFailure(call: Call<ResponseBody>, error: Throwable) {
-            onTaskCompleted(error)
-         }
-
-         override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-            val jsonBody = response.body()?.string()
-
-            if (jsonBody == null) {
-               onTaskCompleted(NullPointerException("No response!"))
-               return
-            }
-
-            val completeNoteResponse = gson.fromJson(jsonBody, CompleteNoteResponse::class.java)
-
-            if (completeNoteResponse?.message == null) {
-               onTaskCompleted(NullPointerException("No response!"))
-            } else {
-               onTaskCompleted(null)
-            }
-         }
-
-      })
-   }
-
-   fun addTask(addTaskRequest: AddTaskRequest, onTaskCreated: (Task?, Throwable?) -> Unit) {
-      val body = RequestBody.create(
-         MediaType.parse("application/json"), gson.toJson(addTaskRequest)
-      )
-
-      apiService.addTask(App.getToken(), body).enqueue(object : Callback<ResponseBody> {
-         override fun onFailure(call: Call<ResponseBody>, error: Throwable) {
-            onTaskCreated(null, error)
-         }
-
-         override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-            val jsonBody = response.body()?.string()
-
-            if (jsonBody == null) {
-               onTaskCreated(null, NullPointerException("No response"))
-               return
-            }
-
-            val data = gson.fromJson(jsonBody, Task::class.java)
-            if (data == null) {
-               onTaskCreated(null, NullPointerException("No response"))
-            } else {
-               onTaskCreated(data, null)
-            }
-         }
-      })
-   }
-
-   fun getUserProfile(onUserProfileReceived: (UserProfile?, Throwable?) -> Unit) {
-      getTasks { tasks, error ->
-         if (error != null && error !is java.lang.NullPointerException) {
-            onUserProfileReceived(null, error)
-            return@getTasks
-         }
-         apiService.getMyProfile(App.getToken()).enqueue(object : Callback<ResponseBody> {
-            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-               onUserProfileReceived(null, error)
-            }
-
-            override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-               val jsonBody = response.body()?.string()
-
-               if (jsonBody == null) {
-                  onUserProfileReceived(null, error)
-                  return
-               }
-               val userProfileResponse = gson.fromJson(jsonBody, UserProfileResponse::class.java)
-
-               if (userProfileResponse.email == null || userProfileResponse.name == null) {
-                  onUserProfileReceived(null, error)
-               } else {
-                  onUserProfileReceived(
-                     UserProfile(
-                        userProfileResponse.email,
-                        userProfileResponse.name,
-                        tasks.size
-                     ), null
-                  )
-               }
-            }
-         })
+  fun loginUser(userDataRequest: UserDataRequest, onUserLoggedIn: (Result<String>) -> Unit) {
+    apiService.loginUser(userDataRequest).enqueue(object : Callback<LoginResponse> {
+      override fun onFailure(call: Call<LoginResponse>, error: Throwable) {
+        onUserLoggedIn(Failure(error))
       }
-   }
+
+      override fun onResponse(call: Call<LoginResponse>, response: Response<LoginResponse>) {
+        val loginResponse = response.body()
+
+        if (loginResponse == null || loginResponse.token.isNullOrEmpty()) {
+          onUserLoggedIn(Failure(NullPointerException("No response body!")))
+        } else {
+          onUserLoggedIn(Success(loginResponse.token))
+        }
+      }
+    })
+
+  }
+
+  fun registerUser(userDataRequest: UserDataRequest, onUserCreated: (Result<String>) -> Unit) {
+    apiService.registerUser(userDataRequest).enqueue(object : Callback<RegisterResponse> {
+      override fun onFailure(call: Call<RegisterResponse>, error: Throwable) {
+        onUserCreated(Failure(error))
+      }
+
+      override fun onResponse(call: Call<RegisterResponse>, response: Response<RegisterResponse>) {
+        val message = response.body()?.message
+        if (message == null) {
+          onUserCreated(Failure(NullPointerException("No response body!")))
+          return
+        }
+
+        onUserCreated(Success(message))
+      }
+    })
+  }
+
+  fun getTasks(onTasksReceived: (Result<List<Task>>) -> Unit) {
+    apiService.getNotes().enqueue(object : Callback<GetTasksResponse> {
+      override fun onFailure(call: Call<GetTasksResponse>, error: Throwable) {
+        onTasksReceived(Failure(error))
+      }
+
+      override fun onResponse(call: Call<GetTasksResponse>, response: Response<GetTasksResponse>) {
+        val data = response.body()
+
+        if (data != null && data.notes.isNotEmpty()) {
+          onTasksReceived(Success(data.notes.filter { !it.isCompleted }))
+        } else {
+          onTasksReceived(Failure(NullPointerException("No data available!")))
+        }
+      }
+    })
+  }
+
+  suspend fun deleteTask(taskId: String) = try {
+    val data = apiService.deleteNote(taskId)
+
+    Success(data.message)
+  } catch (error: Throwable) {
+    Failure(error)
+  }
+
+  fun completeTask(taskId: String, onTaskCompleted: (Throwable?) -> Unit) {
+    apiService.completeTask(taskId).enqueue(object :
+        Callback<CompleteNoteResponse> {
+      override fun onFailure(call: Call<CompleteNoteResponse>, error: Throwable) {
+        onTaskCompleted(error)
+      }
+
+      override fun onResponse(call: Call<CompleteNoteResponse>,
+          response: Response<CompleteNoteResponse>) {
+        val completeNoteResponse = response.body()
+
+        if (completeNoteResponse?.message == null) {
+          onTaskCompleted(NullPointerException("No response!"))
+        } else {
+          onTaskCompleted(null)
+        }
+      }
+    })
+  }
+
+  fun addTask(addTaskRequest: AddTaskRequest, onTaskCreated: (Result<Task>) -> Unit) {
+    apiService.addTask(addTaskRequest).enqueue(object : Callback<Task> {
+      override fun onFailure(call: Call<Task>, error: Throwable) {
+        onTaskCreated(Failure(error))
+      }
+
+      override fun onResponse(call: Call<Task>, response: Response<Task>) {
+        val data = response.body()
+
+        if (data == null) {
+          onTaskCreated(Failure(NullPointerException("No response!")))
+          return
+        } else {
+          onTaskCreated(Success(data))
+        }
+      }
+    })
+
+  }
+
+  fun getUserProfile(onUserProfileReceived: (Result<UserProfile>) -> Unit) {
+    getTasks { result ->
+      if (result is Failure && result.error !is NullPointerException) {
+        onUserProfileReceived(Failure(result.error))
+        return@getTasks
+      }
+      val tasks = result as Success
+
+      apiService.getMyProfile().enqueue(object : Callback<UserProfileResponse> {
+        override fun onFailure(call: Call<UserProfileResponse>, error: Throwable) {
+          onUserProfileReceived(Failure(error))
+        }
+
+        override fun onResponse(call: Call<UserProfileResponse>,
+            response: Response<UserProfileResponse>) {
+          val userProfileResponse = response.body()
+
+          if (userProfileResponse?.email == null || userProfileResponse.name == null) {
+            onUserProfileReceived(Failure(NullPointerException("No data!")))
+          } else {
+            onUserProfileReceived(Success(
+                UserProfile(userProfileResponse.email, userProfileResponse.name, tasks.data.size)))
+          }
+        }
+      })
+    }
+  }
 }

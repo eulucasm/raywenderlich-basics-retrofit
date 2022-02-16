@@ -3,8 +3,7 @@ package com.raywenderlich.android.taskie.model.response
 import kotlinx.serialization.Serializable
 
 /**
- * Holds a message response after a note is completed.
+ * Holds the message response from the delete note request.
  */
-
 @Serializable
-class CompleteNoteResponse(val message: String?)
+class DeleteNoteResponse(val message: String)
